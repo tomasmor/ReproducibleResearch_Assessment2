@@ -1,0 +1,119 @@
+---
+title: "Reproducible Analysis assesment 2"
+---
+
+## Analysis of impact of types of weather events based on NOOA's storm database.
+
+In this report we analyse impact of weather events on public health and economy. This report based on data provided U.S. National Oceanic and Atmospheric Administration's (NOAA). According to this data the most harmful for economy weather event is flood and the most dangerous for public health is tornado.
+
+# Data processing
+Check archive and dowload if it needs:
+```{r}
+if (!file.exists("repdata-data-StormData.csv.bz2")){
+  download.file("https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2", 
+                "repdata-data-StormData.csv.bz2")
+}
+```
+Read the data:
+```{r}
+storm_data <- read.csv(bzfile("repdata-data-StormData.csv.bz2"), header=TRUE, stringsAsFactors = FALSE)
+```
+
+Run some basis analysis of data:
+```{r}
+head(storm_data)
+str(storm_data)
+names(storm_data)
+```
+Data set is quite big so we should extract columns we interested. The main purpose of our analysis is economical and harmful types of events. There are:
+
+
+- EVTYPE
+- FATALITIES
+- INJURIES
+- PROPDMG
+- PROPDMGEXP
+- CROPDMG
+- CROPDMGEXP
+
+
+```{r}
+clean_storm_data <- storm_data[,c("EVTYPE", "FATALITIES", "INJURIES", "PROPDMG", "PROPDMGEXP", "CROPDMG", "CROPDMGEXP")]
+head(clean_storm_data)
+```
+Columns PROPDMG and CROPDMG use colums PROPDMGEXP and CROPDMGEXP to define its amount. We will use rows with meanings "B", "K", "M" and "H" for billions, kilos, millions and hundreads.
+
+```{r}
+clean_storm_data$PROPDMGEXP <- as.character(clean_storm_data$PROPDMGEXP)
+clean_storm_data$CROPDMGEXP <- as.character(clean_storm_data$CROPDMGEXP)
+
+clean_storm_data$CROPDMGEXP[is.na(clean_storm_data$CROPDMGEXP)] <- 0
+clean_storm_data$PROPDMGEXP[is.na(clean_storm_data$PROPDMGEXP)] <- 0
+
+
+clean_storm_data$PROPDMGEXP <- gsub("\\-|\\+|\\?|h|H|0","0", clean_storm_data$PROPDMGEXP)
+clean_storm_data$PROPDMGEXP <- gsub("k|K", "1000", clean_storm_data$PROPDMGEXP)
+clean_storm_data$PROPDMGEXP <- gsub("m|M", "1000000", clean_storm_data$PROPDMGEXP)
+clean_storm_data$PROPDMGEXP <- gsub("b|B", "1000000000", clean_storm_data$PROPDMGEXP)
+
+clean_storm_data$CROPDMGEXP <- gsub("\\-|\\+|\\?|h|H|0","0",clean_storm_data$CROPDMGEXP)
+clean_storm_data$CROPDMGEXP <- gsub("k|K", "1000", clean_storm_data$CROPDMGEXP)
+clean_storm_data$CROPDMGEXP <- gsub("m|M", "1000000", clean_storm_data$CROPDMGEXP)
+clean_storm_data$CROPDMGEXP <- gsub("b|B", "1000000000", clean_storm_data$CROPDMGEXP)
+
+clean_storm_data$PROPDMGEXP <- as.numeric(clean_storm_data$PROPDMGEXP)
+clean_storm_data$CROPDMGEXP <- as.numeric(clean_storm_data$CROPDMGEXP)
+```
+
+To define total amount we will use new varible -- summ impact on economy:
+```{r}
+clean_storm_data$TOTALDMG <- (clean_storm_data$PROPDMG * clean_storm_data$PROPDMGEXP) + (clean_storm_data$CROPDMG * clean_storm_data$CROPDMGEXP)
+```
+
+#Results
+
+*Across the United States, which types of events (as indicated in the EVTYPE variable) are most harmful with respect to population health?*
+
+Getting all fatalities summarized for event type and get 5 the most harmful
+```{r}
+total_fatalities <- aggregate(FATALITIES ~ EVTYPE, data=clean_storm_data, FUN=sum)
+total_fatalities <- total_fatalities[order(total_fatalities$FATALITIES, decreasing=TRUE),]
+max_fatalities <- total_fatalities[1:5,]
+```
+
+Also we interested in injuries cases:
+
+```{r}
+total_injuries <- aggregate(INJURIES ~ EVTYPE, data=clean_storm_data, FUN=sum)
+total_injuries <- total_injuries[order(total_injuries$INJURIES, decreasing=TRUE),]
+max_injuries <- total_injuries[1:5,]
+```
+
+```{r}
+library(ggplot2)
+ggplot(data = max_fatalities, aes(x = max_fatalities$EVTYPE, y = max_fatalities$FATALITIES)) + 
+    geom_bar(fill = "blue", stat = "identity") + xlab("Event Type") + ylab("Fatalities") + ggtitle("Total number of fatalities") 
+
+ggplot(data = max_injuries, aes(x = max_injuries$EVTYPE, y = max_injuries$INJURIES)) + 
+    geom_bar(fill = "orange", stat = "identity") + xlab("Event Type") + ylab("Injuries") + ggtitle("Total number of injuries") 
+```
+
+*Across the United States, which types of events have the greatest economic consequences?*
+
+Aggregate data on event type and get maximum:
+
+```{r}
+total_damage <- aggregate(TOTALDMG ~ EVTYPE, data=clean_storm_data, FUN=sum)
+total_damage <- total_damage[order(total_damage$TOTALDMG, decreasing=TRUE),]
+max_damage <- total_damage[1:5,]
+
+```
+
+Print a plot:
+
+```{r}
+ggplot(data = max_damage, aes(x = max_damage$EVTYPE, y = max_damage$TOTALDMG)) + 
+    geom_bar(fill = "green", stat = "identity") + xlab("Event Type") + ylab("Total damage") + ggtitle("Total economic damage") 
+```
+
+As we can see the most dangorous event for public health is tornado and flood makes the biggest economic harm. 
